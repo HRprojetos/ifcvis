@@ -1,0 +1,15 @@
+{
+  "projects": [
+    {
+      "slug": "residencia-exemplo",
+      "title": "Residência Exemplo",
+      "client": "Cliente Exemplo",
+      "revision": "R01",
+      "updated": "17/08/2026",
+      "status": "EM PROJETO",
+      "description": "Modelo de cadastro. Substitua pelos dados do seu cliente.",
+      "published": false,
+      "models": []
+    }
+  ]
+}

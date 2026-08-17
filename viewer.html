@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Portal BIM | Visualizador IFC</title>
+<meta name="theme-color" content="#0B0E12" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E12;
+    --panel:#12161C;
+    --panel2:#171C23;
+    --border:#232A34;
+    --text:#E7ECF1;
+    --text-dim:#7C8798;
+    --accent:#3FD6C0;
+    --accent-dim:#1E5850;
+    --warn:#FFB454;
+    --danger:#FF6B6B;
+    --radius:6px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;overflow:hidden;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  #app{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column;}
+
+  /* ---- top bar ---- */
+  #topbar{
+    height:48px;flex:0 0 auto;display:flex;align-items:center;gap:14px;
+    padding:0 14px;background:var(--panel);border-bottom:1px solid var(--border);
+    z-index:20;
+  }
+  #topbar .brand{display:flex;align-items:center;gap:8px;}
+  #topbar .brand .mark{width:20px;height:20px;position:relative;flex:0 0 auto;}
+  #topbar .brand .mark svg{width:100%;height:100%;}
+  #topbar .brand h1{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;
+    letter-spacing:.02em;margin:0;color:var(--text);}
+  #topbar .brand small{display:block;font-size:10px;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;}
+  #topbar .sep{width:1px;height:22px;background:var(--border);}
+  #modelname{font-size:12px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;}
+  #topbar .spacer{flex:1;}
+  .btn{
+    background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    font-size:12px;font-family:'Inter',sans-serif;padding:7px 12px;border-radius:var(--radius);
+    cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+    transition:border-color .15s, background .15s;
+  }
+  .btn:hover{border-color:var(--accent);background:#182029;}
+  .btn.primary{background:var(--accent);color:#08211D;border-color:var(--accent);font-weight:600;}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.active{border-color:var(--accent);color:var(--accent);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn svg{width:14px;height:14px;flex:0 0 auto;}
+
+  /* ---- main layout ---- */
+  #main{flex:1;display:flex;position:relative;min-height:0;}
+
+  /* left rail */
+  #rail{
+    width:56px;flex:0 0 auto;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:6px;z-index:15;
+  }
+  .rail-btn{
+    width:38px;height:38px;border-radius:var(--radius);background:transparent;border:1px solid transparent;
+    color:var(--text-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;
+  }
+  .rail-btn svg{width:18px;height:18px;}
+  .rail-btn:hover{color:var(--text);background:var(--panel2);}
+  .rail-btn.active{color:var(--accent);background:var(--accent-dim);border-color:var(--accent);}
+  .rail-gap{height:8px;border-top:1px solid var(--border);width:26px;margin:4px 0;}
+  .rail-btn .tip{
+    position:absolute;left:48px;top:50%;transform:translateY(-50%);
+    background:#000;color:#fff;font-size:11px;padding:4px 8px;border-radius:4px;white-space:nowrap;
+    opacity:0;pointer-events:none;transition:opacity .12s;z-index:40;
+  }
+  .rail-btn:hover .tip{opacity:1;}
+
+  /* viewport */
+  #viewport{flex:1;position:relative;min-width:0;}
+  #three-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;}
+
+  #dropzone{
+    position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+    background:rgba(11,14,18,.94);flex-direction:column;gap:14px;text-align:center;padding:20px;
+  }
+  #dropzone.hidden{display:none;}
+  #dropzone .dz-box{
+    border:1.5px dashed var(--border);border-radius:10px;padding:46px 60px;
+    display:flex;flex-direction:column;align-items:center;gap:14px;transition:border-color .15s,background .15s;
+  }
+  #dropzone .dz-box.hover{border-color:var(--accent);background:rgba(63,214,192,.05);}
+  #dropzone .dz-box svg{width:40px;height:40px;color:var(--accent);}
+  #dropzone h2{font-family:'Space Grotesk',sans-serif;font-size:18px;margin:0;font-weight:600;}
+  #dropzone p{font-size:12.5px;color:var(--text-dim);margin:0;max-width:340px;line-height:1.5;}
+  #dropzone .badge{
+    font-size:10px;color:var(--accent);border:1px solid var(--accent-dim);background:rgba(63,214,192,.08);
+    padding:3px 9px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;
+  }
+
+  /* view cube buttons bottom center */
+  #viewcube{
+    position:absolute;bottom:14px;left:50%;transform:translateX(-50%);z-index:10;
+    display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:5px;
+  }
+  #viewcube button{
+    width:34px;height:26px;font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:.03em;
+    background:transparent;border:none;color:var(--text-dim);border-radius:4px;cursor:pointer;
+  }
+  #viewcube button:hover{background:var(--panel2);color:var(--text);}
+
+  /* coordinate readout - signature element */
+  #coordread{
+    position:absolute;left:14px;bottom:14px;z-index:10;
+    background:var(--panel);border:1px solid var(--border);border-radius:6px;
+    padding:8px 12px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-dim);
+    line-height:1.6;pointer-events:none;min-width:150px;
+  }
+  #coordread .row{display:flex;justify-content:space-between;gap:16px;}
+  #coordread .row span:first-child{color:#4A5568;}
+  #coordread .row span:last-child{color:var(--accent);}
+  #coordread .rule{height:1px;background:var(--border);margin:5px 0;}
+
+  /* scale bar */
+  #scalebar{position:absolute;right:14px;bottom:14px;z-index:10;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+  #scalebar .bar{height:3px;background:var(--accent);}
+  #scalebar .lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-dim);}
+
+  /* loading overlay */
+  #loading{
+    position:absolute;inset:0;z-index:35;display:none;align-items:center;justify-content:center;
+    background:rgba(11,14,18,.88);flex-direction:column;gap:16px;
+  }
+  #loading.show{display:flex;}
+  #loading .spin{width:34px;height:34px;border-radius:50%;border:2.5px solid var(--border);
+    border-top-color:var(--accent);animation:spin 0.9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loading .ltext{font-size:12px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;}
+  #loading .lbar{width:220px;height:4px;background:var(--panel2);border-radius:3px;overflow:hidden;}
+  #loading .lbar-fill{height:100%;width:0%;background:var(--accent);transition:width .15s;}
+
+  /* right panel */
+  #panel{
+    width:320px;flex:0 0 auto;background:var(--panel);border-left:1px solid var(--border);
+    display:none;flex-direction:column;z-index:15;min-height:0;
+  }
+  #panel.open{display:flex;}
+  #panel-head{
+    padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;
+  }
+  #panel-head h3{margin:0;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;letter-spacing:.02em;}
+  #panel-head .close{cursor:pointer;color:var(--text-dim);font-size:16px;line-height:1;padding:2px 6px;}
+  #panel-head .close:hover{color:var(--text);}
+  #panel-body{flex:1;overflow-y:auto;padding:12px 14px;}
+  #panel-body::-webkit-scrollbar{width:8px;}
+  #panel-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  .cat-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #1a1f27;}
+  .cat-row input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:pointer;}
+  .cat-row .swatch{width:9px;height:9px;border-radius:2px;flex:0 0 auto;}
+  .cat-row .name{flex:1;font-size:12px;}
+  .cat-row .count{font-size:10.5px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;}
+  .cat-actions{display:flex;gap:6px;margin-bottom:10px;}
+  .cat-actions .btn{flex:1;justify-content:center;padding:6px;font-size:11px;}
+
+  .prop-empty{color:var(--text-dim);font-size:12px;line-height:1.6;padding:20px 4px;text-align:center;}
+  .prop-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;margin-bottom:2px;}
+  .prop-sub{font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace;margin-bottom:14px;}
+  .prop-item{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #1a1f27;font-size:12px;}
+  .prop-item .k{color:var(--text-dim);flex:0 0 42%;}
+  .prop-item .v{font-family:'IBM Plex Mono',monospace;text-align:right;word-break:break-word;flex:1;}
+
+  .model-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #1a1f27;}
+  .model-row .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:0 0 auto;}
+  .model-row .mname{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .model-row button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px;}
+  .model-row button:hover{color:var(--danger);}
+  .model-row input[type=checkbox]{accent-color:var(--accent);}
+  #addmodel-btn{width:100%;margin-top:6px;justify-content:center;}
+
+  .slider-row{display:flex;align-items:center;gap:10px;}
+  .slider-row input[type=range]{flex:1;accent-color:var(--accent);}
+  .slider-row .val{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent);width:52px;text-align:right;}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;}
+  .toggle-row span{font-size:12px;}
+  .switch{width:34px;height:19px;background:var(--panel2);border:1px solid var(--border);border-radius:20px;position:relative;cursor:pointer;flex:0 0 auto;}
+  .switch .knob{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:var(--text-dim);transition:.15s;}
+  .switch.on{background:var(--accent-dim);border-color:var(--accent);}
+  .switch.on .knob{left:17px;background:var(--accent);}
+
+  .hint{font-size:11px;color:var(--text-dim);line-height:1.6;background:var(--panel2);border:1px solid var(--border);
+    border-radius:6px;padding:9px 10px;margin-top:10px;}
+
+  #measure-info{font-size:12px;color:var(--text-dim);}
+  #measure-info b{color:var(--accent);font-family:'IBM Plex Mono',monospace;}
+
+  input[type=file]{display:none;}
+  ::selection{background:var(--accent);color:#08211D;}
+
+
+  /* ---- project identity / sharing ---- */
+  #projectmeta{display:flex;align-items:center;gap:10px;min-width:0;}
+  #projectmeta .project-text{min-width:0;}
+  #project-title{font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;}
+  #project-rev{font-size:9.5px;color:var(--text-dim);font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+  .status-pill{font-size:9.5px;border:1px solid var(--accent-dim);color:var(--accent);background:rgba(63,214,192,.08);padding:4px 7px;border-radius:999px;white-space:nowrap;}
+  #btn-home{text-decoration:none;}
+  #project-panel{position:absolute;top:14px;right:14px;z-index:11;width:min(330px,calc(100% - 28px));background:rgba(18,22,28,.94);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:9px;padding:12px 13px;display:none;box-shadow:0 14px 40px rgba(0,0,0,.22);}
+  #project-panel.show{display:block;}
+  #project-panel .pp-title{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;margin-bottom:2px;}
+  #project-panel .pp-client{font-size:11px;color:var(--text-dim);margin-bottom:10px;}
+  #discipline-list{display:flex;flex-wrap:wrap;gap:6px;}
+  .disc-btn{border:1px solid var(--border);background:var(--panel2);color:var(--text-dim);font-size:10.5px;padding:5px 8px;border-radius:999px;cursor:pointer;}
+  .disc-btn.on{border-color:var(--accent);color:var(--accent);background:rgba(63,214,192,.07);}
+  @media(max-width:760px){
+    #topbar{gap:8px;padding:0 8px;}
+    #topbar .brand small,#topbar .sep,#project-rev,.status-pill{display:none;}
+    #project-title{max-width:120px;}
+    #rail{width:48px;}
+    #panel{position:absolute;right:0;top:0;bottom:0;width:min(320px,86vw);}
+    #coordread{display:none;}
+    #viewcube{bottom:10px;}
+  }
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2 3 7v10l9 5 9-5V7z" stroke="#3FD6C0"/><path d="M3 7l9 5 9-5M12 12v10" stroke="#3FD6C0"/></svg>
+      </div>
+      <div>
+        <h1 id="brand-title">Portal BIM</h1>
+        <small id="brand-subtitle">Visualizador IFC do escritório</small>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div id="projectmeta">
+      <div class="project-text">
+        <div id="project-title">Projeto não selecionado</div>
+        <div id="project-rev">Abra um IFC local ou use um link de projeto</div>
+      </div>
+      <span class="status-pill" id="project-status">LOCAL</span>
+    </div>
+    <div id="modelname" class="mono" style="display:none">Nenhum modelo carregado</div>
+    <div class="spacer"></div>
+    <a class="btn" id="btn-home" href="./index.html" title="Voltar aos projetos">Projetos</a>
+    <button class="btn" id="btn-screenshot" title="Salvar imagem">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg>
+      Foto
+    </button>
+    <button class="btn primary" id="btn-open">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      Abrir modelo
+    </button>
+  </div>
+
+  <div id="main">
+
+    <div id="rail">
+      <div class="rail-btn" data-panel="models" title="Modelos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2 3 7l9 5 9-5z"/><path d="M3 12l9 5 9-5M3 17l9 5 9-5" opacity=".5"/></svg>
+        <span class="tip">Modelos</span>
+      </div>
+      <div class="rail-btn" data-panel="categories" title="Categorias">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="tip">Categorias</span>
+      </div>
+      <div class="rail-btn" data-panel="props" title="Propriedades">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h16v4H4zM4 10h16v10H4z"/><path d="M8 14h8M8 17h5"/></svg>
+        <span class="tip">Propriedades</span>
+      </div>
+      <div class="rail-gap"></div>
+      <div class="rail-btn" id="tool-wireframe" title="Wireframe">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10M3 7l9-5M12 2l9 5"/></svg>
+        <span class="tip">Alternar wireframe</span>
+      </div>
+      <div class="rail-btn" id="tool-clip" title="Caixa de corte">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12h18M12 3v18" stroke-dasharray="3 2"/><rect x="3" y="3" width="18" height="18" rx="1" opacity=".5"/></svg>
+        <span class="tip">Plano de corte</span>
+      </div>
+      <div class="rail-btn" id="tool-measure" title="Medir">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 17 17 3l4 4L7 21z"/><path d="M8 8l2 2M12 4l2 2M4 16l2 2" /></svg>
+        <span class="tip">Medir distância</span>
+      </div>
+      <div class="rail-gap"></div>
+      <div class="rail-btn" id="tool-fit" title="Enquadrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <span class="tip">Enquadrar modelo</span>
+      </div>
+    </div>
+
+    <div id="viewport">
+      <canvas id="three-canvas"></canvas>
+
+      <div id="dropzone">
+        <div class="dz-box" id="dz-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <h2 class="display">Abrir modelo IFC</h2>
+          <p>Arraste um arquivo <b>.ifc</b> aqui ou selecione do dispositivo. IFC2x3 e IFC4 são suportados.</p>
+          <button class="btn primary" id="dz-select">Selecionar arquivo .ifc</button>
+          <span class="badge mono">Tudo roda no navegador &middot; nada é enviado a servidor</span>
+        </div>
+      </div>
+
+      <div id="project-panel">
+        <div class="pp-title" id="pp-title">Projeto</div>
+        <div class="pp-client" id="pp-client">Cliente</div>
+        <div id="discipline-list"></div>
+      </div>
+
+      <div id="loading">
+        <div class="spin"></div>
+        <div class="ltext" id="loading-text">Lendo geometria… 0%</div>
+        <div class="lbar"><div class="lbar-fill" id="loading-fill"></div></div>
+      </div>
+
+      <div id="viewcube">
+        <button data-view="iso">ISO</button>
+        <button data-view="top">TOPO</button>
+        <button data-view="front">FRENTE</button>
+        <button data-view="back">TRÁS</button>
+        <button data-view="left">ESQ</button>
+        <button data-view="right">DIR</button>
+      </div>
+
+      <div id="coordread">
+        <div class="row"><span>X</span><span id="cx" class="mono">0.000</span></div>
+        <div class="row"><span>Y</span><span id="cy" class="mono">0.000</span></div>
+        <div class="row"><span>Z</span><span id="cz" class="mono">0.000</span></div>
+        <div class="rule"></div>
+        <div class="row"><span>ELEM.</span><span id="cid" class="mono">—</span></div>
+      </div>
+
+      <div id="scalebar">
+        <div class="bar" id="scalebar-bar" style="width:0px"></div>
+        <div class="lbl mono" id="scalebar-lbl">— m</div>
+      </div>
+    </div>
+
+    <div id="panel">
+      <div id="panel-head">
+        <h3 id="panel-title">Painel</h3>
+        <div class="close" id="panel-close">✕</div>
+      </div>
+      <div id="panel-body"></div>
+    </div>
+
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".ifc" multiple />
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script src="https://unpkg.com/web-ifc@0.0.59/web-ifc-api-iife.js"></script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ---------------------------------------------------------------------
+   IFC VIEWER — three.js + web-ifc, tudo client-side.
+--------------------------------------------------------------------- */
+
+// ---------- three.js base setup ----------
+const canvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.localClippingEnabled = true;
+renderer.setClearColor(0x0b0e12, 1);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 5000);
+camera.position.set(20, 16, 20);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0, 0);
+
+// lights
+scene.add(new THREE.HemisphereLight(0xbfd6ff, 0x1a1c20, 1.0));
+const sun = new THREE.DirectionalLight(0xffffff, 1.15);
+sun.position.set(30, 50, 20);
+scene.add(sun);
+const sun2 = new THREE.DirectionalLight(0x88aaff, 0.35);
+sun2.position.set(-30, 10, -20);
+scene.add(sun2);
+
+// grid
+const grid = new THREE.GridHelper(200, 200, 0x2a323d, 0x1a2028);
+grid.material.opacity = 0.6;
+grid.material.transparent = true;
+scene.add(grid);
+
+function resize() {
+  const vp = document.getElementById('viewport');
+  const w = vp.clientWidth, h = vp.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+// ---------- state ----------
+const state = {
+  ifcApi: null,
+  models: [],            // {modelID, group, name, visible, expressToCategory}
+  allMaterials: [],       // for wireframe + clipping toggles
+  meshes: [],             // all THREE.Mesh with userData.expressID/modelID
+  selected: null,
+  wireframe: false,
+  clip: { enabled: false, plane: new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), min: 0, max: 0 },
+  measure: { active: false, points: [], objects: [] },
+  categoryVisibility: {},   // categoryName -> bool
+  panelOpen: null,
+  project: null,
+  modelByDiscipline: {}
+};
+
+// curated category list: [constantName, friendly label PT-BR, color]
+const CATEGORY_DEFS = [
+  ['IFCWALLSTANDARDCASE', 'Paredes', '#5AA9E6'],
+  ['IFCWALL', 'Paredes (genérico)', '#5AA9E6'],
+  ['IFCCURTAINWALL', 'Fachadas cortina', '#7FD1D9'],
+  ['IFCSLAB', 'Lajes', '#C9A66B'],
+  ['IFCCOLUMN', 'Pilares', '#E8896B'],
+  ['IFCBEAM', 'Vigas', '#E8B96B'],
+  ['IFCDOOR', 'Portas', '#A0E86B'],
+  ['IFCWINDOW', 'Janelas', '#6BE8D4'],
+  ['IFCROOF', 'Coberturas', '#B06BE8'],
+  ['IFCSTAIR', 'Escadas', '#E86BB9'],
+  ['IFCSTAIRFLIGHT', 'Lances de escada', '#E86BB9'],
+  ['IFCRAMP', 'Rampas', '#E86BB9'],
+  ['IFCRAILING', 'Guarda-corpos', '#8B95A6'],
+  ['IFCPLATE', 'Placas', '#9AA5B5'],
+  ['IFCMEMBER', 'Elementos lineares', '#9AA5B5'],
+  ['IFCCOVERING', 'Revestimentos', '#D9C36B'],
+  ['IFCFURNISHINGELEMENT', 'Mobiliário', '#6BC4E8'],
+  ['IFCSPACE', 'Espaços', '#4A5568'],
+  ['IFCFLOWTERMINAL', 'Terminais MEP', '#E86B6B'],
+  ['IFCFLOWSEGMENT', 'Segmentos MEP', '#E86B6B'],
+  ['IFCFOOTING', 'Fundações', '#8B6B4A'],
+  ['IFCPILE', 'Estacas', '#8B6B4A'],
+  ['IFCBUILDINGELEMENTPROXY', 'Genéricos', '#7A8496'],
+];
+
+// ---------- IFC init ----------
+async function initIfc() {
+  const api = new WebIFC.IfcAPI();
+  api.SetWasmPath('https://unpkg.com/web-ifc@0.0.59/', true);
+  await api.Init();
+  state.ifcApi = api;
+}
+const ifcReady = initIfc();
+
+// ---------- geometry helpers ----------
+function bufferGeometryFromPlacedGeometry(api, modelID, placedGeometry) {
+  const geometry = api.GetGeometry(modelID, placedGeometry.geometryExpressID);
+  const vertexData = api.GetVertexArray(geometry.GetVertexData(), geometry.GetVertexDataSize());
+  const indexData = api.GetIndexArray(geometry.GetIndexData(), geometry.GetIndexDataSize());
+
+  const bufferGeometry = new THREE.BufferGeometry();
+  const interleaved = new THREE.InterleavedBuffer(vertexData, 6);
+  bufferGeometry.setAttribute('position', new THREE.InterleavedBufferAttribute(interleaved, 3, 0, false));
+  bufferGeometry.setAttribute('normal', new THREE.InterleavedBufferAttribute(interleaved, 3, 3, false));
+  bufferGeometry.setIndex(new THREE.BufferAttribute(indexData, 1));
+
+  const matrix = new THREE.Matrix4().fromArray(placedGeometry.flatTransformation);
+  bufferGeometry.applyMatrix4(matrix);
+
+  geometry.delete();
+  return bufferGeometry;
+}
+
+function buildCategoryMap(api, modelID) {
+  const map = {};
+  const present = new Set();
+  for (const [constName] of CATEGORY_DEFS) {
+    const typeCode = WebIFC[constName];
+    if (typeCode === undefined) continue;
+    let ids;
+    try { ids = api.GetLineIDsWithType(modelID, typeCode); } catch (e) { continue; }
+    if (!ids || ids.size() === 0) continue;
+    present.add(constName);
+    for (let i = 0; i < ids.size(); i++) map[ids.get(i)] = constName;
+  }
+  return { map, present };
+}
+
+// ---------- load model ----------
+async function loadIfcFile(file) {
+  await ifcReady;
+  const api = state.ifcApi;
+  showLoading(true, 'Lendo arquivo…', 0);
+
+  const buffer = await file.arrayBuffer();
+  const data = new Uint8Array(buffer);
+
+  let modelID;
+  try {
+    modelID = api.OpenModel(data, { COORDINATE_TO_ORIGIN: state.models.length === 0 });
+  } catch (err) {
+    showLoading(false);
+    alert('Não foi possível abrir este arquivo IFC. Verifique se é um .ifc válido.\n\n' + err);
+    return;
+  }
+  if (modelID === -1 || modelID === undefined) {
+    showLoading(false);
+    alert('Esquema IFC não suportado ou arquivo corrompido.');
+    return;
+  }
+
+  const { map: categoryMap } = buildCategoryMap(api, modelID);
+
+  const group = new THREE.Group();
+  group.name = file.name;
+
+  await new Promise((resolve) => {
+    api.StreamAllMeshes(modelID, (flatMesh) => {
+      const placedGeometries = flatMesh.geometries;
+      const n = placedGeometries.size();
+      for (let i = 0; i < n; i++) {
+        const placedGeometry = placedGeometries.get(i);
+        let bg;
+        try { bg = bufferGeometryFromPlacedGeometry(api, modelID, placedGeometry); }
+        catch (e) { continue; }
+
+        const c = placedGeometry.color;
+        const material = new THREE.MeshPhongMaterial({
+          color: new THREE.Color(c.x, c.y, c.z),
+          shininess: 8,
+          specular: 0x111111,
+          transparent: c.w < 0.98,
+          opacity: c.w,
+          side: THREE.DoubleSide,
+          clippingPlanes: [],
+        });
+        state.allMaterials.push(material);
+
+        const mesh = new THREE.Mesh(bg, material);
+        mesh.userData.expressID = flatMesh.expressID;
+        mesh.userData.modelID = modelID;
+        mesh.userData.category = categoryMap[flatMesh.expressID] || 'IFCBUILDINGELEMENTPROXY';
+        mesh.userData.baseColor = material.color.clone();
+        mesh.userData.baseOpacity = material.opacity;
+        state.meshes.push(mesh);
+        group.add(mesh);
+      }
+      flatMesh.delete && flatMesh.delete();
+    });
+    resolve();
+  });
+
+  scene.add(group);
+  const pendingMeta = file.__portalMeta || {};
+  const modelRec = { modelID, group, name: file.name, visible: true, discipline: pendingMeta.discipline || 'Modelo' };
+  state.models.push(modelRec);
+  if (pendingMeta.discipline) state.modelByDiscipline[pendingMeta.discipline] = modelRec;
+
+  document.getElementById('modelname').textContent =
+    state.models.length === 1 ? file.name : `${state.models.length} modelos carregados`;
+
+  showLoading(false);
+  document.getElementById('dropzone').classList.add('hidden');
+
+  refreshCategoryVisibilityDefaults();
+  fitToScene(true);
+  renderModelsPanel();
+  renderCategoriesPanel();
+}
+
+function refreshCategoryVisibilityDefaults() {
+  for (const [name] of CATEGORY_DEFS) {
+    if (!(name in state.categoryVisibility)) state.categoryVisibility[name] = true;
+  }
+}
+
+// ---------- loading overlay ----------
+function showLoading(show, text, pct) {
+  const el = document.getElementById('loading');
+  el.classList.toggle('show', show);
+  if (text) document.getElementById('loading-text').textContent = `${text}`;
+  if (pct !== undefined) document.getElementById('loading-fill').style.width = pct + '%';
+}
+
+// ---------- fit / views ----------
+function computeSceneBox() {
+  const box = new THREE.Box3();
+  let has = false;
+  for (const m of state.models) {
+    if (!m.visible) continue;
+    const b = new THREE.Box3().setFromObject(m.group);
+    if (!b.isEmpty()) { box.union(b); has = true; }
+  }
+  return has ? box : null;
+}
+
+function fitToScene(setClipRange) {
+  const box = computeSceneBox();
+  if (!box) return;
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = Math.max(size.x, size.y, size.z) * 0.65 || 10;
+
+  controls.target.copy(center);
+  const dir = new THREE.Vector3(1, 0.85, 1).normalize();
+  camera.position.copy(center.clone().add(dir.multiplyScalar(radius * 2.1)));
+  camera.near = radius / 100;
+  camera.far = radius * 100;
+  camera.updateProjectionMatrix();
+  controls.update();
+
+  grid.position.y = box.min.y;
+
+  if (setClipRange) {
+    state.clip.min = box.min.y;
+    state.clip.max = box.max.y;
+    state.clip.plane.constant = box.max.y;
+    const slider = document.getElementById('clip-slider');
+    if (slider) { slider.min = box.min.y; slider.max = box.max.y; slider.value = box.max.y; }
+  }
+  updateScaleBar(radius);
+}
+
+function setView(name) {
+  const box = computeSceneBox();
+  const center = box ? box.getCenter(new THREE.Vector3()) : new THREE.Vector3();
+  const size = box ? box.getSize(new THREE.Vector3()) : new THREE.Vector3(20,20,20);
+  const radius = (Math.max(size.x, size.y, size.z) || 20) * 1.6;
+  const dirs = {
+    iso: [1, 0.85, 1], top: [0, 1, 0.0001], front: [0, 0, 1],
+    back: [0, 0, -1], left: [-1, 0, 0], right: [1, 0, 0],
+  };
+  const d = new THREE.Vector3(...dirs[name]).normalize();
+  camera.position.copy(center.clone().add(d.multiplyScalar(radius)));
+  controls.target.copy(center);
+  camera.up.set(0, name === 'top' ? 0 : 1, name === 'top' ? -1 : 0);
+  controls.update();
+}
+
+document.querySelectorAll('#viewcube button').forEach((b) => {
+  b.addEventListener('click', () => setView(b.dataset.view));
+});
+document.getElementById('tool-fit').addEventListener('click', () => fitToScene(false));
+
+// ---------- scale bar ----------
+function updateScaleBar(radius) {
+  const dist = camera.position.distanceTo(controls.target) || radius;
+  const worldPerPixel = (2 * Math.tan((camera.fov * Math.PI / 180) / 2) * dist) / renderer.domElement.clientHeight;
+  let targetPx = 90;
+  let meters = worldPerPixel * targetPx;
+  const niceSteps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+  let nice = niceSteps.reduce((a, b) => Math.abs(b - meters) < Math.abs(a - meters) ? b : a, niceSteps[0]);
+  const px = nice / worldPerPixel;
+  document.getElementById('scalebar-bar').style.width = px + 'px';
+  document.getElementById('scalebar-lbl').textContent = nice >= 1 ? `${nice} m` : `${nice * 100} cm`;
+}
+
+// ---------- rail / panels ----------
+const panelTitles = { models: 'Modelos', categories: 'Categorias', props: 'Propriedades' };
+document.querySelectorAll('.rail-btn[data-panel]').forEach((btn) => {
+  btn.addEventListener('click', () => togglePanel(btn.dataset.panel));
+});
+document.getElementById('panel-close').addEventListener('click', () => togglePanel(null));
+
+function togglePanel(name) {
+  const panel = document.getElementById('panel');
+  document.querySelectorAll('.rail-btn[data-panel]').forEach(b => b.classList.remove('active'));
+  if (state.panelOpen === name) {
+    state.panelOpen = null;
+    panel.classList.remove('open');
+    return;
+  }
+  state.panelOpen = name;
+  panel.classList.add('open');
+  document.getElementById('panel-title').textContent = panelTitles[name];
+  document.querySelector(`.rail-btn[data-panel="${name}"]`).classList.add('active');
+  if (name === 'models') renderModelsPanel();
+  if (name === 'categories') renderCategoriesPanel();
+  if (name === 'props') renderPropsPanel();
+  resize();
+}
+
+// ---------- models panel ----------
+function renderModelsPanel() {
+  if (state.panelOpen !== 'models') return;
+  const body = document.getElementById('panel-body');
+  body.innerHTML = '';
+  if (state.models.length === 0) {
+    body.innerHTML = '<div class="prop-empty">Nenhum modelo carregado ainda.</div>';
+  }
+  state.models.forEach((m, idx) => {
+    const row = document.createElement('div');
+    row.className = 'model-row';
+    row.innerHTML = `
+      <input type="checkbox" ${m.visible ? 'checked' : ''} />
+      <div class="dot"></div>
+      <div class="mname" title="${m.name}">${m.discipline ? `<b>${m.discipline}</b> · ` : ``}${m.name}</div>
+      <button title="Remover">✕</button>`;
+    row.querySelector('input').addEventListener('change', (e) => {
+      m.visible = e.target.checked;
+      m.group.visible = m.visible;
+      fitToScene(false);
+    });
+    row.querySelector('button').addEventListener('click', () => removeModel(idx));
+    body.appendChild(row);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn primary';
+  addBtn.id = 'addmodel-btn';
+  addBtn.textContent = '+ Adicionar modelo .ifc';
+  addBtn.addEventListener('click', () => document.getElementById('file-input').click());
+  body.appendChild(addBtn);
+
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = 'Você pode carregar múltiplos arquivos IFC juntos para comparar disciplinas (arquitetura, estrutura, MEP).';
+  body.appendChild(hint);
+}
+
+function removeModel(idx) {
+  const m = state.models[idx];
+  if (!m) return;
+  scene.remove(m.group);
+  m.group.traverse((obj) => {
+    if (obj.isMesh) {
+      obj.geometry.dispose();
+      obj.material.dispose();
+    }
+  });
+  state.meshes = state.meshes.filter((mesh) => mesh.userData.modelID !== m.modelID);
+  state.ifcApi.CloseModel(m.modelID);
+  state.models.splice(idx, 1);
+  document.getElementById('modelname').textContent =
+    state.models.length === 0 ? 'Nenhum modelo carregado' :
+    state.models.length === 1 ? state.models[0].name : `${state.models.length} modelos carregados`;
+  if (state.models.length === 0) document.getElementById('dropzone').classList.remove('hidden');
+  renderModelsPanel();
+  fitToScene(false);
+}
+
+// ---------- categories panel ----------
+function renderCategoriesPanel() {
+  if (state.panelOpen !== 'categories') return;
+  const body = document.getElementById('panel-body');
+  body.innerHTML = '';
+
+  if (state.meshes.length === 0) {
+    body.innerHTML = '<div class="prop-empty">Carregue um modelo para ver categorias.</div>';
+    return;
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'cat-actions';
+  actions.innerHTML = `<button class="btn" id="cat-all">Mostrar tudo</button><button class="btn" id="cat-none">Ocultar tudo</button>`;
+  body.appendChild(actions);
+
+  const counts = {};
+  for (const mesh of state.meshes) counts[mesh.userData.category] = (counts[mesh.userData.category] || 0) + 1;
+
+  const seen = new Set();
+  for (const [constName, label, color] of CATEGORY_DEFS) {
+    if (!counts[constName] || seen.has(constName)) continue;
+    seen.add(constName);
+    const row = document.createElement('div');
+    row.className = 'cat-row';
+    row.innerHTML = `
+      <input type="checkbox" ${state.categoryVisibility[constName] !== false ? 'checked' : ''} />
+      <div class="swatch" style="background:${color}"></div>
+      <div class="name">${label}</div>
+      <div class="count mono">${counts[constName]}</div>`;
+    row.querySelector('input').addEventListener('change', (e) => {
+      state.categoryVisibility[constName] = e.target.checked;
+      applyCategoryVisibility();
+    });
+    body.appendChild(row);
+  }
+
+  document.getElementById('cat-all').addEventListener('click', () => {
+    for (const k in state.categoryVisibility) state.categoryVisibility[k] = true;
+    applyCategoryVisibility(); renderCategoriesPanel();
+  });
+  document.getElementById('cat-none').addEventListener('click', () => {
+    for (const k in state.categoryVisibility) state.categoryVisibility[k] = false;
+    applyCategoryVisibility(); renderCategoriesPanel();
+  });
+}
+
+function applyCategoryVisibility() {
+  for (const mesh of state.meshes) {
+    mesh.visible = state.categoryVisibility[mesh.userData.category] !== false;
+  }
+}
+
+// ---------- properties panel ----------
+function renderPropsPanel() {
+  const body = document.getElementById('panel-body');
+  body.innerHTML = '';
+  if (!state.selected) {
+    body.innerHTML = '<div class="prop-empty">Toque em um elemento no modelo 3D para ver as propriedades.</div>';
+    return;
+  }
+  const { expressID, modelID, category } = state.selected.userData;
+  const api = state.ifcApi;
+  let line = {};
+  try { line = api.GetLine(modelID, expressID) || {}; } catch (e) {}
+
+  const catLabel = (CATEGORY_DEFS.find(c => c[0] === category) || [null, 'Elemento'])[1];
+  const title = document.createElement('div');
+  title.innerHTML = `<div class="prop-title">${extractVal(line.Name) || '(sem nome)'}</div>
+    <div class="prop-sub">${catLabel} &middot; ID ${expressID}</div>`;
+  body.appendChild(title);
+
+  const fields = ['GlobalId', 'ObjectType', 'Tag', 'Description', 'PredefinedType'];
+  for (const f of fields) {
+    if (line[f] === undefined || line[f] === null) continue;
+    const val = extractVal(line[f]);
+    if (val === '' || val === null) continue;
+    const item = document.createElement('div');
+    item.className = 'prop-item';
+    item.innerHTML = `<div class="k">${f}</div><div class="v">${val}</div>`;
+    body.appendChild(item);
+  }
+
+  const hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = 'Propriedades básicas da entidade IFC. Conjuntos de propriedades (Psets) completos podem ser lidos com ferramentas IFC dedicadas.';
+  body.appendChild(hint);
+}
+
+function extractVal(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object' && 'value' in v) return String(v.value);
+  if (Array.isArray(v)) return v.map(extractVal).join(', ');
+  return String(v);
+}
+
+// ---------- selection / raycast ----------
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+let pointerDownPos = null;
+
+renderer.domElement.addEventListener('pointerdown', (e) => { pointerDownPos = [e.clientX, e.clientY]; });
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (pointerDownPos) {
+    const dx = e.clientX - pointerDownPos[0], dy = e.clientY - pointerDownPos[1];
+    if (Math.hypot(dx, dy) > 5) return; // it was a drag, not a click
+  }
+  handlePick(e);
+});
+
+function getIntersect(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNDC, camera);
+  const visibleMeshes = state.meshes.filter(m => m.visible && m.parent);
+  const hits = raycaster.intersectObjects(visibleMeshes, false);
+  return hits[0] || null;
+}
+
+function handlePick(e) {
+  const hit = getIntersect(e);
+  if (state.measure.active) { handleMeasureClick(hit); return; }
+
+  if (state.selected) restoreMeshMaterial(state.selected);
+  if (!hit) {
+    state.selected = null;
+    if (state.panelOpen === 'props') renderPropsPanel();
+    return;
+  }
+  const mesh = hit.object;
+  state.selected = mesh;
+  mesh.material.emissive = new THREE.Color(0xffb454);
+  mesh.material.emissiveIntensity = 0.55;
+  if (state.panelOpen !== 'props') togglePanel('props'); else renderPropsPanel();
+}
+
+function restoreMeshMaterial(mesh) {
+  if (mesh.material.emissive) {
+    mesh.material.emissive.set(0x000000);
+    mesh.material.emissiveIntensity = 0;
+  }
+}
+
+// live coordinate readout
+renderer.domElement.addEventListener('pointermove', (e) => {
+  const hit = getIntersect(e);
+  if (hit) {
+    document.getElementById('cx').textContent = hit.point.x.toFixed(3);
+    document.getElementById('cy').textContent = hit.point.y.toFixed(3);
+    document.getElementById('cz').textContent = hit.point.z.toFixed(3);
+    document.getElementById('cid').textContent = hit.object.userData.expressID ?? '—';
+  }
+});
+
+// ---------- wireframe ----------
+document.getElementById('tool-wireframe').addEventListener('click', (btn) => {
+  state.wireframe = !state.wireframe;
+  document.getElementById('tool-wireframe').classList.toggle('active', state.wireframe);
+  for (const m of state.allMaterials) m.wireframe = state.wireframe;
+});
+
+// ---------- clipping ----------
+document.getElementById('tool-clip').addEventListener('click', () => {
+  const active = document.getElementById('tool-clip').classList.toggle('active');
+  state.clip.enabled = active;
+  for (const m of state.allMaterials) m.clippingPlanes = active ? [state.clip.plane] : [];
+  togglePanel(active ? null : null);
+  showClipSlider(active);
+});
+
+function showClipSlider(show) {
+  let el = document.getElementById('clip-panel');
+  if (!show) { if (el) el.remove(); return; }
+  if (el) return;
+  el = document.createElement('div');
+  el.id = 'clip-panel';
+  el.style.cssText = 'position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:12;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:10px;min-width:280px;';
+  el.innerHTML = `
+    <span class="mono" style="font-size:11px;color:var(--text-dim);">CORTE Y</span>
+    <input type="range" id="clip-slider" style="flex:1;accent-color:var(--accent);" />
+    <span class="mono" id="clip-val" style="font-size:11px;color:var(--accent);width:56px;text-align:right;"></span>`;
+  document.getElementById('viewport').appendChild(el);
+  const slider = document.getElementById('clip-slider');
+  slider.min = state.clip.min; slider.max = state.clip.max; slider.step = (state.clip.max - state.clip.min) / 200 || 0.01;
+  slider.value = state.clip.max;
+  document.getElementById('clip-val').textContent = Number(slider.value).toFixed(2) + ' m';
+  slider.addEventListener('input', () => {
+    state.clip.plane.constant = parseFloat(slider.value);
+    document.getElementById('clip-val').textContent = parseFloat(slider.value).toFixed(2) + ' m';
+  });
+}
+
+// ---------- measure ----------
+document.getElementById('tool-measure').addEventListener('click', () => {
+  state.measure.active = !state.measure.active;
+  document.getElementById('tool-measure').classList.toggle('active', state.measure.active);
+  clearMeasure();
+  showMeasurePanel(state.measure.active);
+});
+
+function showMeasurePanel(show) {
+  let el = document.getElementById('measure-panel');
+  if (!show) { if (el) el.remove(); return; }
+  if (el) return;
+  el = document.createElement('div');
+  el.id = 'measure-panel';
+  el.style.cssText = 'position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:12;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:9px 16px;display:flex;align-items:center;gap:10px;';
+  el.innerHTML = `<span id="measure-info" class="mono">Clique em dois pontos do modelo…</span>`;
+  document.getElementById('viewport').appendChild(el);
+}
+
+function clearMeasure() {
+  state.measure.points = [];
+  for (const o of state.measure.objects) scene.remove(o);
+  state.measure.objects = [];
+}
+
+function handleMeasureClick(hit) {
+  if (!hit) return;
+  state.measure.points.push(hit.point.clone());
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffb454, depthTest: false })
+  );
+  sphere.position.copy(hit.point);
+  sphere.renderOrder = 999;
+  scene.add(sphere);
+  state.measure.objects.push(sphere);
+
+  if (state.measure.points.length === 2) {
+    const [a, b] = state.measure.points;
+    const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xffb454, depthTest: false }));
+    line.renderOrder = 999;
+    scene.add(line);
+    state.measure.objects.push(line);
+    const dist = a.distanceTo(b);
+    const info = document.getElementById('measure-info');
+    if (info) info.innerHTML = `Distância: <b>${dist.toFixed(3)} m</b> &middot; clique novamente para reiniciar`;
+    state.measure.points = [];
+  }
+}
+
+// ---------- screenshot ----------
+document.getElementById('btn-screenshot').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  const url = renderer.domElement.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'visualizador-ifc.png';
+  a.click();
+});
+
+// ---------- file open ----------
+const fileInput = document.getElementById('file-input');
+document.getElementById('btn-open').addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+document.getElementById('dz-select').addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+fileInput.addEventListener('change', async (e) => {
+  for (const f of e.target.files) await loadIfcFile(f);
+});
+
+// drag & drop
+const dropzone = document.getElementById('dropzone');
+const dzBox = document.getElementById('dz-box');
+const viewportEl = document.getElementById('viewport');
+['dragenter', 'dragover'].forEach(ev => viewportEl.addEventListener(ev, (e) => {
+  e.preventDefault(); dropzone.classList.remove('hidden'); dzBox.classList.add('hover');
+}));
+['dragleave'].forEach(ev => viewportEl.addEventListener(ev, (e) => {
+  if (state.models.length > 0) dropzone.classList.add('hidden');
+  dzBox.classList.remove('hover');
+}));
+viewportEl.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  dzBox.classList.remove('hover');
+  const files = [...e.dataTransfer.files].filter(f => f.name.toLowerCase().endsWith('.ifc'));
+  if (files.length === 0) { alert('Envie um arquivo .ifc'); return; }
+  for (const f of files) await loadIfcFile(f);
+});
+
+// ---------- render loop ----------
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+resize();
+animate();
+
+// ---------- portal project loader ----------
+function updateProjectUI(project) {
+  state.project = project || null;
+  const title = document.getElementById('project-title');
+  const rev = document.getElementById('project-rev');
+  const status = document.getElementById('project-status');
+  const panel = document.getElementById('project-panel');
+  if (!project) {
+    title.textContent = 'Projeto local';
+    rev.textContent = 'Arquivo aberto somente neste navegador';
+    status.textContent = 'LOCAL';
+    panel.classList.remove('show');
+    return;
+  }
+  title.textContent = project.title || project.name || 'Projeto BIM';
+  rev.textContent = [project.revision && `Rev. ${project.revision}`, project.updated && `Atualizado ${project.updated}`].filter(Boolean).join(' · ');
+  status.textContent = project.status || 'PROJETO';
+  document.getElementById('pp-title').textContent = project.title || project.name || 'Projeto BIM';
+  document.getElementById('pp-client').textContent = project.client ? `Cliente: ${project.client}` : (project.description || '');
+  panel.classList.add('show');
+}
+
+function renderDisciplineButtons(project) {
+  const wrap = document.getElementById('discipline-list');
+  wrap.innerHTML = '';
+  for (const model of (project.models || [])) {
+    const b = document.createElement('button');
+    b.className = 'disc-btn on';
+    b.textContent = model.discipline || model.name || 'Modelo';
+    b.dataset.discipline = model.discipline || model.name || 'Modelo';
+    b.addEventListener('click', () => {
+      const rec = state.modelByDiscipline[b.dataset.discipline];
+      if (!rec) return;
+      rec.visible = !rec.visible;
+      rec.group.visible = rec.visible;
+      b.classList.toggle('on', rec.visible);
+      fitToScene(false);
+    });
+    wrap.appendChild(b);
+  }
+}
+
+async function loadRemoteIfc(model) {
+  const url = model.url;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Falha ao carregar ${url} (${res.status})`);
+  const blob = await res.blob();
+  const file = new File([blob], model.filename || url.split('/').pop() || 'modelo.ifc');
+  file.__portalMeta = { discipline: model.discipline || model.name || 'Modelo' };
+  await loadIfcFile(file);
+}
+
+async function loadProjectBySlug(slug) {
+  const res = await fetch('./projects.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('Não foi possível ler projects.json');
+  const data = await res.json();
+  const projects = Array.isArray(data) ? data : (data.projects || []);
+  const project = projects.find(p => p.slug === slug);
+  if (!project) throw new Error(`Projeto "${slug}" não encontrado.`);
+  updateProjectUI(project);
+  renderDisciplineButtons(project);
+  if (!project.models || project.models.length === 0) throw new Error('Este projeto ainda não possui modelos IFC publicados.');
+  for (const model of project.models) await loadRemoteIfc(model);
+}
+
+// URL param auto-load: ?url=https://.../model.ifc
+(async function autoLoadFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const project = params.get('project');
+  const url = params.get('url');
+  if (!project && !url) { updateProjectUI(null); return; }
+  try {
+    if (project) {
+      await loadProjectBySlug(project);
+      return;
+    }
+    updateProjectUI(null);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const file = new File([blob], url.split('/').pop() || 'modelo.ifc');
+    await loadIfcFile(file);
+  } catch (e) {
+    console.warn('Falha no carregamento automático', e);
+    showLoading(false);
+    alert('Não foi possível carregar o projeto automaticamente.\n\n' + e.message);
+  }
+})();
+</script>
+</body>
+</html>
